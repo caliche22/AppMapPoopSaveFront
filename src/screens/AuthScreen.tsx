@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, Image } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,7 +7,6 @@ const AuthScreen = () => {
     const { login, register, isLoading } = useContext(AuthContext);
     const [isLogin, setIsLogin] = useState(true);
 
-    // Form State
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -39,6 +38,14 @@ const AuthScreen = () => {
             <View style={styles.content}>
                 <Text style={styles.title}>{isLogin ? 'CagaSafe Login' : 'Join CagaSafe'}</Text>
 
+                <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                    <Image
+                        source={require('../../assets/icon.png')}
+                        style={{ width: 100, height: 100 }}
+                        resizeMode="contain"
+                    />
+                </View>
+
                 {!isLogin && (
                     <TextInput
                         style={styles.input}
@@ -68,11 +75,13 @@ const AuthScreen = () => {
                 {isLoading ? (
                     <ActivityIndicator size="large" color="#0000ff" />
                 ) : (
-                    <Button title={isLogin ? 'Login' : 'Register'} onPress={handleSubmit} />
+                    <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit}>
+                        <Text style={styles.primaryButtonText}>{isLogin ? 'Login' : 'Register'}</Text>
+                    </TouchableOpacity>
                 )}
 
                 <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.switchButton}>
-                    <Text style={styles.switchText}>
+                    <Text style={styles.switchButtonText}>
                         {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
                     </Text>
                 </TouchableOpacity>
@@ -86,7 +95,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         padding: 20,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#B3E5FC',
     },
     content: {
         backgroundColor: 'white',
@@ -113,13 +122,26 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         fontSize: 16,
     },
+    primaryButton: {
+        backgroundColor: '#01579B',
+        paddingVertical: 15,
+        borderRadius: 8,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    primaryButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
     switchButton: {
         marginTop: 20,
         alignItems: 'center',
     },
-    switchText: {
-        color: '#007BFF',
+    switchButtonText: {
+        color: '#01579B',
         fontSize: 16,
+        fontWeight: '600',
     },
 });
 
