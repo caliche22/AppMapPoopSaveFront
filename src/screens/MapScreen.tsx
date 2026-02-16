@@ -6,6 +6,8 @@ import api from '../services/api';
 import { AuthContext } from '../context/AuthContext';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
+import AdBanner from '../components/AdBanner';
+import { getAds, Advertisement } from '../services/adService';
 
 interface Place {
     id: string;
@@ -27,6 +29,12 @@ const MapScreen = () => {
     const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
     const [newCoordinate, setNewCoordinate] = useState<{ latitude: number; longitude: number } | null>(null);
     const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+
+    // Ad State
+    const [ads, setAds] = useState<Advertisement[]>([]);
+    const [currentAd, setCurrentAd] = useState<Advertisement | null>(null);
+    // Store dismissal times: { [adId]: timestamp }
+    const [dismissedAds, setDismissedAds] = useState<Record<string, number>>({});
 
     const mapRef = useRef<MapView>(null);
     const route = useRoute();
@@ -81,7 +89,102 @@ const MapScreen = () => {
         })();
 
         fetchPlaces();
+        fetchAds();
     }, []);
+
+    const fetchAds = async () => {
+        const adsData = await getAds();
+        setAds(adsData);
+    };
+
+    // Check for nearby ads when location changes
+    useEffect(() => {
+        if (!location || ads.length === 0) return;
+
+        const checkAds = () => {
+            const userLat = location.coords.latitude;
+            const userLon = location.coords.longitude;
+
+            // 1. Find ALL ads within range that are ready to be shown
+            const nearbyAds = ads.filter(ad => {
+                const R = 6371e3; // metres
+                const φ1 = userLat * Math.PI / 180;
+                const φ2 = ad.latitude * Math.PI / 180;
+                const Δφ = (ad.latitude - userLat) * Math.PI / 180;
+                const Δλ = (ad.longitude - userLon) * Math.PI / 180;
+
+                const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const d = R * c;
+
+                const inRange = d < 2500; // 2500m for testing
+
+                if (inRange) {
+                    // Check if recently dismissed (less than 5 minutes ago)
+                    const lastDismissed = dismissedAds[ad.id];
+                    if (lastDismissed) {
+                        const timeSinceDismissal = Date.now() - lastDismissed;
+                        if (timeSinceDismissal < 10000) { // Reduced to 10 seconds for FAST TESTING of rotation
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            });
+
+            if (nearbyAds.length > 0) {
+                // If current ad is still valid and nearby, keep it? 
+                // OR if we want rotation, we should pick a different one if possible?
+
+                // Simple Rotation Logic: Pick the one that hasn't been shown for the longest time
+                // or just pick random if all are "ready"
+
+                // Let's sort by "last dismissed time" (oldest first) so we rotate
+                const sortedAds = nearbyAds.sort((a, b) => {
+                    const timeA = dismissedAds[a.id] || 0;
+                    const timeB = dismissedAds[b.id] || 0;
+                    return timeA - timeB; // Ascending: items never shown (0) or shown long ago come first
+                });
+
+                const nextAd = sortedAds[0];
+
+                if (currentAd?.id !== nextAd.id) {
+                    setCurrentAd(nextAd);
+                }
+            } else {
+                setCurrentAd(null);
+            }
+        };
+
+        checkAds();
+        // Check every 10 seconds to presumably re-trigger if time passed
+        const interval = setInterval(checkAds, 10000);
+        return () => clearInterval(interval);
+    }, [location, ads, dismissedAds]);
+
+    // Auto-rotate current ad every 10 seconds (for testing)
+    useEffect(() => {
+        if (!currentAd) return;
+
+        const timer = setTimeout(() => {
+            handleDismissAd(); // Dismiss current to trigger rotation
+        }, 15000); // 15 seconds for video recording
+
+        return () => clearTimeout(timer);
+    }, [currentAd]);
+
+    const handleDismissAd = () => {
+        if (currentAd) {
+            setDismissedAds(prev => ({
+                ...prev,
+                [currentAd.id]: Date.now()
+            }));
+            setCurrentAd(null);
+        }
+    };
 
     const fetchPlaces = async () => {
         try {
@@ -249,6 +352,10 @@ const MapScreen = () => {
             <TouchableOpacity style={styles.myLocationButton} onPress={goToMyLocation}>
                 <MaterialIcons name="my-location" size={24} color="black" />
             </TouchableOpacity>
+
+            {currentAd && !selectedPlace && (
+                <AdBanner ad={currentAd} onClose={handleDismissAd} />
+            )}
 
             {selectedPlace && (
                 <View style={styles.detailsCard}>
